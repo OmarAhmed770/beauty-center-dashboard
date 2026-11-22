@@ -1,0 +1,54 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: beauty-center-management-system
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/beauty_center}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: ${APP_TIMEZONE:Africa/Cairo}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    time-zone: ${APP_TIMEZONE:Africa/Cairo}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  time-zone: ${APP_TIMEZONE:Africa/Cairo}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  security:
+    jwt:
+      secret: ${JWT_SECRET:}
+      issuer: ${JWT_ISSUER:beauty-center-management-system}
+      access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:15m}
+    login-protection:
+      maximum-failed-attempts: ${LOGIN_MAXIMUM_FAILED_ATTEMPTS:5}
+      lock-duration: ${LOGIN_LOCK_DURATION:15m}
+    registration-protection:
+      maximum-attempts: ${REGISTRATION_MAXIMUM_ATTEMPTS:5}
+      window: ${REGISTRATION_RATE_LIMIT_WINDOW:15m}
+  backup:
+    enabled: ${BACKUP_ENABLED:true}
+    directory: ${BACKUP_DIRECTORY:./backups}
+    retention-count: ${BACKUP_RETENTION_COUNT:30}
+    pg-dump-path: ${PG_DUMP_PATH:pg_dump}
+    pg-restore-path: ${PG_RESTORE_PATH:pg_restore}
+    timeout: ${BACKUP_TIMEOUT:10m}
+    filename-prefix: ${BACKUP_FILENAME_PREFIX:beauty-center}

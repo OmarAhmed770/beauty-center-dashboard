@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:beauty_center_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    # TEST ONLY - isolated test fixture.
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+app:
+  time-zone: Africa/Cairo
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+  security:
+    jwt:
+      # TEST ONLY - isolated test fixture.
+      secret: test-only-jwt-secret-with-more-than-32-characters
+      issuer: beauty-center-management-system-test
+      access-token-expiration: 15m
+    login-protection:
+      maximum-failed-attempts: 5
+      lock-duration: 15m
+    registration-protection:
+      maximum-attempts: 5
+      window: 15m
+  backup:
+    enabled: false
+    directory: ./target/test-backups
+    retention-count: 3
+    pg-dump-path: pg_dump
+    pg-restore-path: pg_restore
+    timeout: 30s
+    filename-prefix: beauty-center-test
