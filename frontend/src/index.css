@@ -1,0 +1,257 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #C2417A;
+  --color-primary-hover: #A93568;
+  --color-primary-soft: #FDF1F6;
+  --color-soft-border: #F3D4E1;
+  --color-ink: #3A2530;
+  --color-muted: #7A6670;
+  --color-page: #FEFAFC;
+  --color-surface-soft: #FFF8FB;
+  --color-sidebar: #FFF3F8;
+  --color-content: #FFFBFD;
+  --color-success: #1F8A5B;
+  --color-danger: #C0392B;
+}
+
+:root {
+  font-family: "Cairo", "Noto Kufi Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+  color: var(--color-ink);
+  background: var(--color-content);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  max-width: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--color-content);
+}
+
+#root {
+  min-height: 100%;
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  max-width: 100%;
+}
+
+button,
+summary,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+summary {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+@media screen and (max-width: 63.99rem) {
+  .responsive-data-table > div {
+    overflow-x: visible;
+  }
+
+  .responsive-data-table table,
+  .responsive-data-table tbody,
+  .responsive-data-table tr,
+  .responsive-data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .responsive-data-table tbody {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .responsive-data-table tbody tr {
+    border: 1px solid var(--color-soft-border);
+    border-radius: 1rem;
+    padding: 0.875rem;
+    background: #fff;
+  }
+
+  .responsive-data-table tbody td {
+    min-width: 0;
+    padding: 0.35rem 0;
+    overflow-wrap: anywhere;
+  }
+
+  .responsive-data-table tbody td:not(:empty)::before {
+    content: attr(data-mobile-label);
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--color-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .responsive-data-table tbody td:empty,
+  .responsive-data-table tbody td[data-mobile-label="الإجراء"]:empty,
+  .responsive-data-table tbody td[data-mobile-label="الإجراءات"]:empty {
+    display: none;
+  }
+
+  .responsive-data-table tbody td > div.flex {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .responsive-data-table tbody td > div.flex > button,
+  .responsive-data-table tbody td > div.flex > a,
+  .responsive-data-table tbody td > button,
+  .responsive-data-table tbody td > a {
+    min-height: 2.75rem;
+  }
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.login-background {
+  background: var(--color-page);
+}
+
+/* Compatibility bridge for existing Tailwind utility strings. All prior pink/maroon values
+   resolve through the design tokens above while the application is gradually simplified. */
+[class*="text-[#A83868]"],
+[class*="text-[#8e2e58]"],
+[class*="text-rose-800"],
+[class*="text-rose-700"] { color: var(--color-primary); }
+
+[class*="text-[#29252A]"] { color: var(--color-ink); }
+
+[class*="text-[#5e3446]"] { color: var(--color-ink); }
+
+[class*="text-[#736873]"],
+[class*="text-[#8a7d86]"],
+[class*="text-[#a69aa2]"],
+[class*="text-[#857a82]"] { color: var(--color-muted); }
+
+[class*="bg-[#A83868]"] { background-color: var(--color-primary); }
+
+[class*="bg-[#FCEAF2]"],
+[class*="bg-[#fff4f8]"] { background-color: var(--color-primary-soft); }
+
+[class*="bg-[#fffafb]"],
+[class*="bg-[#fff8fb]"],
+[class*="bg-[#fff9fb]"] { background-color: var(--color-surface-soft); }
+
+[class*="border-[#E88DB4]"],
+[class*="border-[#eee7ea]"],
+[class*="border-[#e9dfe4]"] { border-color: var(--color-soft-border); }
+
+[class*="hover:bg-[#8e2e58]"]:hover { background-color: var(--color-primary-hover); }
+
+[class*="hover:bg-[#FCEAF2]"]:hover,
+[class*="hover:bg-[#fff4f8]"]:hover { background-color: var(--color-primary-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .printable-view,
+  .printable-view * {
+    visibility: visible;
+  }
+
+  .printable-view {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .printable-view table {
+    break-inside: auto;
+  }
+
+  .printable-view tr,
+  .printable-view section,
+  .printable-view article > header,
+  .printable-view article > footer {
+    break-inside: avoid;
+  }
+
+  .printable-view.print-layout-receipt {
+    width: 80mm;
+    max-width: 80mm;
+    font-size: 10px;
+  }
+
+  .printable-view.print-layout-receipt article {
+    gap: 3mm;
+  }
+
+  .printable-view.print-layout-receipt table {
+    font-size: 8px;
+  }
+
+  .printable-view.print-layout-receipt th,
+  .printable-view.print-layout-receipt td {
+    padding: 1.5mm !important;
+  }
+}

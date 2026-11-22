@@ -1,0 +1,43 @@
+import { Pencil, Plus, Search } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
+import { cairoDateIso } from "@/components/shared/date-range-filter";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+import { DataTableWrapper, tableStyles } from "@/components/shared/data-table-wrapper";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingState } from "@/components/shared/loading-state";
+import { PageHeader } from "@/components/shared/page-header";
+import { PaginationControls } from "@/components/shared/pagination-controls";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { useAuth } from "@/features/auth/auth-context";
+import { DiscountFormDialog } from "@/features/discounts/discount-form-dialog";
+import { discountKeys, searchDiscounts, setDiscountActive } from "@/features/discounts/api";
+import { discountTypeLabels } from "@/features/discounts/model";
+import type { Discount, DiscountType } from "@/features/discounts/types";
+import { getArabicApiErrorMessage } from "@/lib/api/errors";
+import { formatArabicDate, formatEgp } from "@/lib/format";
+
+export function DiscountsPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission("SETTINGS");
+  const queryClient = useQueryClient();
+  const [draftQuery, setDraftQuery] = useState("");
+  const [query, setQuery] = useState("");
+  const [type, setType] = useState<DiscountType | "">("");
+  const [active, setActive] = useState<"" | "true" | "false">("");
+  const [page, setPage] = useState(0);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Discount | null>(null);
+  const [statusTarget, setStatusTarget] = useState<Discount | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const params = { query: query || undefined, type: type || undefined, active: active === "" ? undefined : active === "true", page, size: 20 };
+  const discountsQuery = useQuery({ queryKey: discountKeys.list(params), queryFn: () => searchDiscounts(params) });
+  const statusMutation = useMutation({ mutationFn: (discount: Discount) => setDiscountActive(discount.id, !discount.active), onSuccess: async () => { setStatusTarget(null); setActionError(null); await queryClient.invalidateQueries({ queryKey: discountKeys.all }); }, onError: (error) => setActionError(getArabicApiErrorMessage(error)) });
+  const today = cairoDateIso();
+  const submit = (event: FormEvent) => { event.preventDefault(); setQuery(draftQuery.trim()); setPage(0); };
+  return <div className="space-y-6"><PageHeader title="الخصومات" description="خصومات مجدولة بنسبة أو مبلغ ثابت مع نطاق تطبيق اختياري." actions={canManage && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus className="h-4 w-4" />إضافة خصم</Button>} /><form className="grid gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px_180px_auto]" onSubmit={submit}><label className="relative"><span className="sr-only">بحث</span><Search className="absolute right-3.5 top-3.5 h-5 w-5 text-stone-400" /><Input className="pr-11" value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} placeholder="اسم الخصم" /></label><Select aria-label="نوع الخصم" value={type} onChange={(event) => { setType(event.target.value as DiscountType | ""); setPage(0); }}><option value="">كل الأنواع</option>{Object.entries(discountTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select><Select aria-label="حالة الخصم" value={active} onChange={(event) => { setActive(event.target.value as typeof active); setPage(0); }}><option value="">كل الحالات</option><option value="true">نشط</option><option value="false">غير نشط</option></Select><Button type="submit" variant="secondary"><Search className="h-4 w-4" />بحث</Button></form>{actionError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">{actionError}</div>}{discountsQuery.isPending ? <LoadingState label="جارٍ تحميل الخصومات..." /> : discountsQuery.isError ? <ErrorState error={discountsQuery.error} onRetry={() => void discountsQuery.refetch()} /> : discountsQuery.data.content.length === 0 ? <EmptyState title="لا توجد خصومات مطابقة" /> : <><DataTableWrapper label="قائمة الخصومات"><thead className={tableStyles.head}><tr><th>الخصم</th><th>القيمة</th><th>الصلاحية</th><th>النطاق</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody className={tableStyles.body}>{discountsQuery.data.content.map((discount) => { const scheduled = today < discount.startDate ? "UPCOMING" : today > discount.endDate ? "EXPIRED" : "CURRENT"; return <tr key={discount.id}><td><p className="font-black text-stone-950">{discount.name}</p><p className="mt-1 text-xs text-stone-400">{discountTypeLabels[discount.type]}</p></td><td className="font-black tabular-nums">{discount.type === "PERCENTAGE" ? `${discount.value}%` : formatEgp(discount.value)}</td><td><p>{formatArabicDate(discount.startDate)} — {formatArabicDate(discount.endDate)}</p><StatusBadge className="mt-2" tone={scheduled === "CURRENT" ? "success" : scheduled === "UPCOMING" ? "info" : "warning"}>{scheduled === "CURRENT" ? "ساري الآن" : scheduled === "UPCOMING" ? "لم يبدأ" : "منتهي"}</StatusBadge></td><td>{discount.catalogItemId ? `الصنف: ${discount.catalogItemCode}` : discount.categoryId ? `التصنيف: ${discount.categoryNameArabic}` : "عام"}</td><td><StatusBadge tone={discount.active ? "success" : "neutral"}>{discount.active ? "نشط" : "غير نشط"}</StatusBadge></td><td>{canManage && <div className="flex gap-2"><Button size="sm" variant="ghost" onClick={() => { setEditing(discount); setFormOpen(true); }}><Pencil className="h-4 w-4" />تعديل</Button><Button size="sm" variant="ghost" className={discount.active ? "text-red-700" : "text-emerald-700"} onClick={() => setStatusTarget(discount)}>{discount.active ? "إيقاف" : "تفعيل"}</Button></div>}</td></tr>; })}</tbody></DataTableWrapper><PaginationControls page={discountsQuery.data.page} totalPages={discountsQuery.data.totalPages} totalElements={discountsQuery.data.totalElements} onPageChange={setPage} /></>}<DiscountFormDialog open={formOpen} discount={editing} onOpenChange={setFormOpen} /><ConfirmationDialog open={Boolean(statusTarget)} title={statusTarget?.active ? "إيقاف الخصم" : "تفعيل الخصم"} description="يتحقق الخادم أيضًا من فترة الصلاحية والنطاق عند تطبيق الخصم على الفاتورة." confirmLabel={statusTarget?.active ? "إيقاف" : "تفعيل"} destructive={Boolean(statusTarget?.active)} busy={statusMutation.isPending} onOpenChange={(open) => !open && setStatusTarget(null)} onConfirm={() => statusTarget && statusMutation.mutate(statusTarget)} /></div>;
+}

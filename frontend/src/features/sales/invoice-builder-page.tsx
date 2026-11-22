@@ -1,0 +1,48 @@
+import { ArrowRight, CheckCircle2, Plus, Save, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+import { DataTableWrapper, tableStyles } from "@/components/shared/data-table-wrapper";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingState } from "@/components/shared/loading-state";
+import { PageHeader } from "@/components/shared/page-header";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { AddInvoiceItemDialog } from "@/features/sales/add-invoice-item-dialog";
+import { completeInvoice, getInvoice, invoiceKeys, removeInvoiceItem, setInvoicePayments } from "@/features/sales/api";
+import { paymentTotals } from "@/features/sales/model";
+import { PaymentEditor } from "@/features/sales/payment-editor";
+import type { InvoiceItem, InvoicePaymentInput } from "@/features/sales/types";
+import { getArabicApiErrorMessage } from "@/lib/api/errors";
+import { invalidateFinancialViews } from "@/lib/financial-query-invalidation";
+import { formatArabicDate, formatEgp } from "@/lib/format";
+
+export function InvoiceBuilderPage() {
+  const invoiceId = Number(useParams<{ invoiceId: string }>().invoiceId);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const initializedId = useRef<number | null>(null);
+  const [itemOpen, setItemOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<InvoiceItem | null>(null);
+  const [completeConfirmOpen, setCompleteConfirmOpen] = useState(false);
+  const [payments, setPayments] = useState<InvoicePaymentInput[]>([]);
+  const [paymentsValid, setPaymentsValid] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const invoiceQuery = useQuery({ queryKey: invoiceKeys.detail(invoiceId), queryFn: () => getInvoice(invoiceId), enabled: Number.isInteger(invoiceId) && invoiceId > 0 });
+  useEffect(() => { if (invoiceQuery.data && initializedId.current !== invoiceQuery.data.id) { initializedId.current = invoiceQuery.data.id; setPayments(invoiceQuery.data.payments.map((payment) => ({ paymentMethodId: payment.paymentMethodId, amount: String(payment.amount), referenceNumber: payment.referenceNumber ?? "" }))); } }, [invoiceQuery.data]);
+  const removeMutation = useMutation({ mutationFn: (itemId: number) => removeInvoiceItem(invoiceId, itemId), onSuccess: async (updated) => { setRemoveTarget(null); queryClient.setQueryData(invoiceKeys.detail(invoiceId), updated); await queryClient.invalidateQueries({ queryKey: invoiceKeys.all }); }, onError: (error) => setActionError(getArabicApiErrorMessage(error)) });
+  const completeMutation = useMutation({ mutationFn: async () => { await setInvoicePayments(invoiceId, payments.map((payment) => ({ ...payment, referenceNumber: payment.referenceNumber?.trim() || undefined }))); return completeInvoice(invoiceId); }, onSuccess: async (updated) => { queryClient.setQueryData(invoiceKeys.detail(invoiceId), updated); await Promise.all([queryClient.invalidateQueries({ queryKey: invoiceKeys.all }), invalidateFinancialViews(queryClient)]); setCompleteConfirmOpen(false); navigate(`/sales/invoices/${invoiceId}`); }, onError: (error) => setActionError(getArabicApiErrorMessage(error)) });
+  const handleValidity = useCallback((valid: boolean) => setPaymentsValid(valid), []);
+  if (invoiceQuery.isPending) return <LoadingState label="جارٍ فتح المسودة..." />;
+  if (invoiceQuery.isError) return <ErrorState error={invoiceQuery.error} onRetry={() => void invoiceQuery.refetch()} />;
+  const invoice = invoiceQuery.data;
+  if (invoice.status !== "DRAFT") return <ErrorState title="الفاتورة ليست مسودة" error={new Error("لا يمكن تعديل فاتورة مكتملة أو ملغاة.")} onRetry={() => navigate(`/sales/invoices/${invoice.id}`)} />;
+  const balance = paymentTotals(invoice.finalTotal, payments);
+  const canComplete = invoice.items.length > 0 && paymentsValid && balance.matches;
+  return <div className="space-y-6"><PageHeader title={`فاتورة ${invoice.invoiceNumber}`} description={`مسودة محفوظة — تاريخ العمل ${formatArabicDate(invoice.businessDate)}`} actions={<><Button asChild variant="outline"><Link to="/sales"><ArrowRight className="h-4 w-4" />قائمة الفواتير</Link></Button><Button asChild variant="secondary"><Link to="/sales"><Save className="h-4 w-4" />حفظ ومتابعة لاحقًا</Link></Button><Button size="lg" disabled={!canComplete || completeMutation.isPending} onClick={() => { setActionError(null); setCompleteConfirmOpen(true); }}><CheckCircle2 className="h-5 w-5" />{completeMutation.isPending ? "جارٍ الإكمال..." : "إكمال الفاتورة"}</Button></>} />{actionError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{actionError}</div>}<section className="grid gap-4 lg:grid-cols-[1fr_0.7fr]"><Card className="p-5"><h2 className="font-black text-stone-950">بيانات العميل</h2><dl className="mt-4 grid gap-4 sm:grid-cols-2"><div><dt className="text-xs font-bold text-stone-400">الاسم</dt><dd className="mt-1 font-bold">{invoice.customerName || "عميل نقدي"}</dd></div><div><dt className="text-xs font-bold text-stone-400">الهاتف</dt><dd className="mt-1 font-bold" dir="ltr">{invoice.customerPhone || "—"}</dd></div></dl>{invoice.notes && <p className="mt-4 rounded-xl bg-stone-50 p-3 text-sm leading-7 text-stone-600">{invoice.notes}</p>}</Card><Card className="p-5"><div className="flex items-center justify-between"><h2 className="font-black text-stone-950">حالة الحفظ</h2><StatusBadge tone="warning">مسودة</StatusBadge></div><p className="mt-4 text-sm leading-7 text-stone-600">كل بند وتوزيع دفعات يُحفظ في الخادم. لا تعتمد الواجهة على حساباتها وحدها عند الإكمال.</p></Card></section><section className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"><div><h2 className="text-lg font-black text-stone-950">بنود الفاتورة</h2><p className="mt-1 text-sm text-stone-500">الأسعار والتكاليف المعروضة محفوظة كلقطات تاريخية.</p></div><Button size="lg" className="w-full sm:w-auto" onClick={() => setItemOpen(true)}><Plus className="h-5 w-5" />إضافة خدمة أو منتج</Button></div>{invoice.items.length === 0 ? <EmptyState title="الفاتورة بلا بنود" description="أضف خدمة أو منتجًا واحدًا على الأقل قبل التحصيل." /> : <DataTableWrapper label="بنود الفاتورة"><thead className={tableStyles.head}><tr><th>البند</th><th>الموظف</th><th>الكمية</th><th>السعر الأصلي</th><th>الخصم</th><th>الإجمالي النهائي</th><th>الإجراء</th></tr></thead><tbody className={tableStyles.body}>{invoice.items.map((item) => <tr key={item.id}><td><p className="font-black text-stone-950">{item.itemNameArabic}</p><p className="mt-1 font-mono text-xs text-stone-400" dir="ltr">{item.itemCode}</p>{item.priceOverridden && <StatusBadge className="mt-2" tone="warning">سعر يدوي مصرح</StatusBadge>}</td><td>{item.employeeName || "—"}</td><td className="tabular-nums">{item.quantity}</td><td><p className="font-bold tabular-nums">{formatEgp(item.lineSubtotal)}</p><p className="mt-1 text-xs text-stone-400">الوحدة {formatEgp(item.unitOriginalSellingPrice)}</p></td><td><p className="font-bold tabular-nums text-red-700">{formatEgp(item.discountAmount)}</p>{item.discountName && <p className="mt-1 text-xs text-stone-400">{item.discountName}</p>}</td><td className="font-black tabular-nums text-rose-800">{formatEgp(item.finalLineTotal)}</td><td><Button size="sm" variant="ghost" className="text-red-700" onClick={() => setRemoveTarget(item)}><Trash2 className="h-4 w-4" />حذف</Button></td></tr>)}</tbody></DataTableWrapper>}</section><Card className="grid gap-4 p-5 sm:grid-cols-3"><Summary label="الإجمالي قبل الخصم" value={invoice.subtotal} /><Summary label="إجمالي الخصومات" value={invoice.discountTotal} tone="text-red-700" /><Summary label="الإجمالي النهائي" value={invoice.finalTotal} tone="text-rose-800" /></Card><PaymentEditor invoice={invoice} payments={payments} onChange={setPayments} onValidityChange={handleValidity} />{!canComplete && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">لإكمال الفاتورة: أضف بندًا واحدًا على الأقل، ثم اجعل مجموع الدفعات مساويًا للإجمالي النهائي مع استكمال المراجع المطلوبة.</p>}<AddInvoiceItemDialog open={itemOpen} invoice={invoice} onOpenChange={setItemOpen} /><ConfirmationDialog open={Boolean(removeTarget)} title="حذف البند من المسودة" description={`سيُحذف ${removeTarget?.itemNameArabic ?? "البند"} من هذه المسودة ويُعاد حساب الإجماليات.`} confirmLabel="حذف البند" destructive busy={removeMutation.isPending} onOpenChange={(open) => !open && setRemoveTarget(null)} onConfirm={() => removeTarget && removeMutation.mutate(removeTarget.id)} /><ConfirmationDialog open={completeConfirmOpen} title="إكمال الفاتورة" description="سيُثبت الخادم البنود والدفعات ولن يمكن تعديلها بعد الإكمال." confirmLabel="إكمال الفاتورة" busy={completeMutation.isPending} onOpenChange={setCompleteConfirmOpen} onConfirm={() => completeMutation.mutate()} /></div>;
+}
+
+function Summary({ label, value, tone = "text-stone-950" }: { label: string; value: number | string; tone?: string }) { return <div><p className="text-xs font-bold text-stone-500">{label}</p><p className={`mt-2 text-2xl font-black tabular-nums ${tone}`}>{formatEgp(value)}</p></div>; }
